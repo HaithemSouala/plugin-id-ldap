@@ -46,10 +46,12 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 		implements IGroupRepository {
 
 	/**
-	 * Default DN member for new group. This is required for some LDAP implementation where "uniqueMember" attribute is
-	 * required for "groupOfUniqueNames" class.
+	 * Default DN member for new group. This is required for some LDAP
+	 * implementation where "uniqueMember" attribute is required for
+	 * "groupOfUniqueNames" class.
 	 * 
-	 * @see <a href="https://msdn.microsoft.com/en-us/library/ms682261(v=vs.85).aspx">MSDN</a>
+	 * @see <a href=
+	 *      "https://msdn.microsoft.com/en-us/library/ms682261(v=vs.85).aspx">MSDN</a>
 	 * @see <a href="https://tools.ietf.org/html/rfc4519#page-19">IETF</a>
 	 */
 	public static final String DEFAULT_MEMBER_DN = "uid=none";
@@ -77,11 +79,11 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 	}
 
 	/**
-	 * Fetch and return all normalized groups. Note the result use cache, so does not reflect the current state of LDAP.
-	 * LDAP. Cache manager is involved.
+	 * Fetch and return all normalized groups. Note the result use cache, so does
+	 * not reflect the current state of LDAP. LDAP. Cache manager is involved.
 	 * 
-	 * @return the groups. Key is the normalized name, Value is the corresponding LDAP group containing real CN, DN and
-	 *         normalized UID members.
+	 * @return the groups. Key is the normalized name, Value is the corresponding
+	 *         LDAP group containing real CN, DN and normalized UID members.
 	 */
 	@Override
 	@SuppressWarnings("unchecked")
@@ -90,11 +92,11 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 	}
 
 	/**
-	 * Fetch and return all normalized groups. Note the result use cache, so does not reflect the current state of LDAP.
-	 * LDAP.
+	 * Fetch and return all normalized groups. Note the result use cache, so does
+	 * not reflect the current state of LDAP. LDAP.
 	 * 
-	 * @return the groups. Key is the normalized name, Value is the corresponding LDAP group containing real CN, DN and
-	 *         normalized UID members.
+	 * @return the groups. Key is the normalized name, Value is the corresponding
+	 *         LDAP group containing real CN, DN and normalized UID members.
 	 */
 	public Map<String, GroupOrg> findAllNoCache() {
 		final Map<String, GroupOrg> groups = new HashMap<>();
@@ -139,10 +141,12 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 			for (final String subGroupDn : subGroupsDn.get(group.getId())) {
 				final GroupOrg subGroup = dnToGroups.get(Normalizer.normalize(subGroupDn));
 				if (subGroup == null) {
-					// The unique member previously found does not match to an existing group, report it
+					// The unique member previously found does not match to an existing group,
+					// report it
 					log.warn("Broken group reference found '{}' --> {}", group.getDn(), subGroupDn);
 				} else {
-					// This is a valid sub group, create both sides of this relation. Raw CN are used
+					// This is a valid sub group, create both sides of this relation. Raw CN are
+					// used
 					group.getSubGroups().add(subGroup.getId());
 					subGroup.getGroups().add(group.getId());
 				}
@@ -163,8 +167,8 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 	}
 
 	/**
-	 * Delete the given group. There is no synchronized block, so error could occur; this is assumed for performance
-	 * purpose.
+	 * Delete the given group. There is no synchronized block, so error could occur;
+	 * this is assumed for performance purpose.
 	 * 
 	 * @param group
 	 *            the LDAP group.
@@ -173,13 +177,15 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 	public void delete(final GroupOrg group) {
 
 		/*
-		 * Remove from this group, all groups within (sub LDAP DN) this group. This operation is needed since we are not
-		 * rebuilding the cache from the LDAP. This save a lot of computations.
+		 * Remove from this group, all groups within (sub LDAP DN) this group. This
+		 * operation is needed since we are not rebuilding the cache from the LDAP. This
+		 * save a lot of computations.
 		 */
 		findAll().values().stream().filter(g -> DnUtils.equalsOrParentOf(group.getDn(), g.getDn()))
 				.collect(Collectors.toList()).forEach(this::removeFromJavaCache);
 
-		// Remove from LDAP the recursively the group. Anything that was not nicely cleaned will be deleted there.
+		// Remove from LDAP the recursively the group. Anything that was not nicely
+		// cleaned will be deleted there.
 		template.unbind(org.springframework.ldap.support.LdapUtils.newLdapName(group.getDn()), true);
 
 		// Also, update the cache
@@ -219,7 +225,8 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 	}
 
 	/**
-	 * Update the uniqueMember attribute of the user having changed DN. Cache is not updated since.
+	 * Update the uniqueMember attribute of the user having changed DN. Cache is not
+	 * updated since.
 	 * 
 	 * @param oldUniqueMemberDn
 	 *            Old DN of the member to update.
@@ -235,6 +242,22 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 				new BasicAttribute(UNIQUE_MEMBER, oldUniqueMemberDn));
 		mods[1] = new ModificationItem(DirContext.ADD_ATTRIBUTE, new BasicAttribute(UNIQUE_MEMBER, newUniqueMemberDn));
 		template.modifyAttributes(org.springframework.ldap.support.LdapUtils.newLdapName(groupLdap.getDn()), mods);
+	}
+
+	/**
+	 * Update the uniqueMember attribute of the user having changed DN. Cache is not
+	 * updated since.
+	 * 
+	 * @param groupDn
+	 *            CN of the group to update.
+	 * @param newUniqueMemberDn
+	 *            New DN of the member to update. UID of the DN should unchanged.
+	 */
+	public void fixMemberDn(final String groupDn, final String newUniqueMemberDn) {
+		final ModificationItem[] mods = new ModificationItem[2];
+		mods[0] = new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute(UNIQUE_MEMBER, null));
+		mods[1] = new ModificationItem(DirContext.ADD_ATTRIBUTE, new BasicAttribute(UNIQUE_MEMBER, newUniqueMemberDn));
+		template.modifyAttributes(org.springframework.ldap.support.LdapUtils.newLdapName(groupDn), mods);
 	}
 
 	@Override
@@ -289,7 +312,8 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 				template.modifyAttributes(org.springframework.ldap.support.LdapUtils.newLdapName(groupLdap.getDn()),
 						mods);
 			} catch (final org.springframework.ldap.AttributeInUseException aiue) {
-				// Even if the membership update failed, the user does not exist anymore. A broken reference can remains
+				// Even if the membership update failed, the user does not exist anymore. A
+				// broken reference can remains
 				// in LDAP, but this case is well managed.
 				log.info("Unable to remove user {} from the group {} : {}", uniqueMember.getDn(), group, aiue);
 			} catch (final org.springframework.ldap.SchemaViolationException sve) { // NOSONAR - Exception is logged
@@ -308,7 +332,8 @@ public class GroupLdapRepository extends AbstractContainerLdaRepository<GroupOrg
 	@Override
 	protected void mapToContext(final GroupOrg entry, final DirContextOperations context) {
 		context.setAttributeValue("cn", entry.getName());
-		// Dummy member for initial group, due to LDAP compliance of class "groupOfUniqueNames"
+		// Dummy member for initial group, due to LDAP compliance of class
+		// "groupOfUniqueNames"
 		context.setAttributeValue(UNIQUE_MEMBER, DEFAULT_MEMBER_DN);
 	}
 
