@@ -370,7 +370,7 @@ public class UserLdapRepository implements IUserRepository {
 				if (!Normalizer.normalize(dn).equals(Normalizer.normalize(user.getDn()))) {
 					log.warn("Broken user DN reference found '{}' --> {}, instead of {}", groupLdap.getDn(), dn,
 							user.getDn());
-					groupLdapRepository.fixMemberDn(groupLdap.getDn(), user.getDn());
+					//groupLdapRepository.fixMemberDn(groupLdap.getDn(), user.getDn());
 				}
 				user.getGroups().add(group);
 
@@ -809,7 +809,7 @@ public class UserLdapRepository implements IUserRepository {
 					throw new ValidationJsonException("password", "login");
 				} catch (final InvalidAttributeValueException e) {
 					log.info("Password change failed due to: {}", e.getMessage());
-					throw new ValidationJsonException("new-password", "password-policy");
+					throw new ValidationJsonException("password", "password-policy");
 				}
 				return null;
 			}
